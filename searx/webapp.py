@@ -20,9 +20,6 @@ from urllib.parse import urlencode, urlparse, unquote
 import warnings
 import httpx
 
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name
-from pygments.formatters import HtmlFormatter  # pylint: disable=no-name-in-module
 
 from whitenoise import WhiteNoise
 from whitenoise.base import Headers
@@ -54,7 +51,6 @@ from searx import (
     settings,
 )
 
-from searx import infopage
 from searx import limiter
 from searx.botdetection import link_token, ProxyFix
 
@@ -177,71 +173,9 @@ def _get_locale_rfc5646(locale):
     return parts[0].lower() + '-' + parts[-1].upper()
 
 
-# code-highlighter
 @app.template_filter('code_highlighter')
 def code_highlighter(codelines, language=None, hl_lines=None, strip_whitespace=True, strip_new_lines=True):
-    if not language:
-        language = 'text'
-
-    try:
-        lexer = get_lexer_by_name(language, stripall=strip_whitespace, stripnl=strip_new_lines)
-
-    except Exception as e:  # pylint: disable=broad-except
-        logger.warning("pygments lexer: %s " % e)
-        # if lexer is not found, using default one
-        lexer = get_lexer_by_name('text', stripall=strip_whitespace, stripnl=strip_new_lines)
-
-    html_code = ''
-    tmp_code = ''
-    last_line = None
-    line_code_start = None
-
-    def offset_hl_lines(hl_lines, start):
-        """
-        hl_lines in pygments are expected to be relative to the input
-        """
-        if hl_lines is None:
-            return None
-
-        return [line - start + 1 for line in hl_lines]
-
-    # parse lines
-    for line, code in codelines:
-        if not last_line:
-            line_code_start = line
-
-        # new codeblock is detected
-        if last_line is not None and last_line + 1 != line:
-
-            # highlight last codepart
-            formatter = HtmlFormatter(
-                linenos='inline',
-                linenostart=line_code_start,
-                cssclass="code-highlight",
-                hl_lines=offset_hl_lines(hl_lines, line_code_start),
-            )
-            html_code = html_code + highlight(tmp_code, lexer, formatter)
-
-            # reset conditions for next codepart
-            tmp_code = ''
-            line_code_start = line
-
-        # add codepart
-        tmp_code += code + '\n'
-
-        # update line
-        last_line = line
-
-    # highlight last codepart
-    formatter = HtmlFormatter(
-        linenos='inline',
-        linenostart=line_code_start,
-        cssclass="code-highlight",
-        hl_lines=offset_hl_lines(hl_lines, line_code_start),
-    )
-    html_code = html_code + highlight(tmp_code, lexer, formatter)
-
-    return html_code
+    return ''
 
 
 def get_result_template(theme_name: str, template_name: str):
@@ -288,8 +222,6 @@ def custom_url_for(endpoint: str, **values):
         #     info/<locale>/about
 
         locale = sxng_request.preferences.get_value("locale")
-        if infopage.INFO_PAGES.get_page(values["pagename"], locale) is None:
-            locale = infopage.INFO_PAGES.locale_default
         values["locale"] = locale
 
     return url_for(endpoint, **values)
@@ -794,18 +726,7 @@ def about():
 
 @app.route('/info/<locale>/<pagename>', methods=['GET'])
 def info(pagename, locale):
-    """Render page of online user documentation"""
-    page = infopage.INFO_PAGES.get_page(pagename, locale)
-    if page is None:
-        flask.abort(404)
-
-    user_locale = sxng_request.preferences.get_value('locale')
-    return render(
-        'info.html',
-        all_pages=infopage.INFO_PAGES.iter_pages(user_locale, fallback_to_default=True),
-        active_page=page,
-        active_pagename=pagename,
-    )
+    flask.abort(404)
 
 
 @app.route('/autocompleter', methods=['GET', 'POST'])
