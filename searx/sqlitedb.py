@@ -228,7 +228,15 @@ class SQLiteAppl(abc.ABC):
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.Connection(self.db_url, **self.SQLITE_CONNECT_ARGS)  # type: ignore
-        conn.execute(f"PRAGMA journal_mode={self.SQLITE_JOURNAL_MODE}")
+        for _ in range(20):
+            try:
+                conn.execute(f"PRAGMA journal_mode={self.SQLITE_JOURNAL_MODE}")
+                break
+            except sqlite3.OperationalError:
+                import time
+                time.sleep(0.5)
+        else:
+            conn.execute(f"PRAGMA journal_mode={self.SQLITE_JOURNAL_MODE}")
         self.register_functions(conn)
         return conn
 
