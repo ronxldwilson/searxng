@@ -122,7 +122,7 @@ class SQLiteAppl(abc.ABC):
     .. _WAL: https://sqlite.org/wal.html
     """
     SQLITE_CONNECT_ARGS: dict[str,str|int|bool|None] = {
-        # "timeout": 5.0,
+        "timeout": 10.0,
         # "detect_types": 0,
         "check_same_thread": bool(SQLITE_THREADING_MODE != "serialized"),
         "cached_statements": 0,  # https://github.com/python/cpython/issues/118172
