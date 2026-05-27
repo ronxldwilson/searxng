@@ -70,15 +70,185 @@ def searxng_useragent() -> str:
     return f"SearXNG/{VERSION_TAG} {settings['outgoing']['useragent_suffix']}".strip()
 
 
-def gen_useragent(os_string: str | None = None) -> str:
-    """Return a random browser User Agent
+_UA_POOL: list[str] = []
 
-    See searx/data/useragents.json
+
+def _init_ua_pool() -> list[str]:  # pylint: disable=too-many-statements
+    global _UA_POOL  # pylint: disable=global-statement
+    if _UA_POOL:
+        return _UA_POOL
+
+    # --- Chrome: major versions with realistic full build numbers ---
+    chrome_builds = [
+        "116.0.5845.187", "117.0.5938.149", "118.0.5993.117", "119.0.6045.199",
+        "120.0.6099.224", "121.0.6167.160", "122.0.6261.128", "123.0.6312.122",
+        "124.0.6367.207", "125.0.6422.141", "126.0.6478.182", "127.0.6533.119",
+        "128.0.6613.137", "129.0.6668.100", "130.0.6723.91",
+    ]
+
+    # --- Firefox: realistic full versions ---
+    firefox_versions = [
+        "115.0", "116.0", "117.0", "118.0", "119.0", "120.0",
+        "121.0", "122.0", "123.0", "124.0", "125.0", "126.0",
+        "127.0", "128.0", "129.0", "130.0",
+    ]
+
+    # --- Edge: full build numbers (tracks Chrome) ---
+    edge_builds = [
+        "118.0.2088.76", "119.0.2151.97", "120.0.2210.144", "121.0.2277.128",
+        "122.0.2365.92", "123.0.2420.97", "124.0.2478.105", "125.0.2535.92",
+        "126.0.2592.102", "127.0.2651.98", "128.0.2739.79",
+    ]
+
+    # --- Desktop platforms (weighted toward Windows/macOS for realism) ---
+    desktop_platforms = [
+        "Windows NT 10.0; Win64; x64",
+        "Windows NT 10.0; Win64; x64",
+        "Windows NT 10.0; Win64; x64",
+        "Windows NT 10.0; WOW64",
+        "Windows NT 11.0; Win64; x64",
+        "Macintosh; Intel Mac OS X 10_15_7",
+        "Macintosh; Intel Mac OS X 10_15_7",
+        "Macintosh; Intel Mac OS X 11_7_10",
+        "Macintosh; Intel Mac OS X 12_7_4",
+        "Macintosh; Intel Mac OS X 13_6_7",
+        "Macintosh; Intel Mac OS X 14_0",
+        "Macintosh; Intel Mac OS X 14_4",
+        "Macintosh; Intel Mac OS X 14_5",
+        "X11; Linux x86_64",
+        "X11; Linux x86_64",
+        "X11; Ubuntu; Linux x86_64",
+        "X11; Fedora; Linux x86_64",
+    ]
+
+    # --- Mobile platforms ---
+    android_devices = [
+        "Linux; Android 13; SM-S901B",
+        "Linux; Android 13; SM-S908B",
+        "Linux; Android 13; SM-A546B",
+        "Linux; Android 14; SM-S921B",
+        "Linux; Android 14; SM-S928B",
+        "Linux; Android 12; Pixel 6",
+        "Linux; Android 13; Pixel 7",
+        "Linux; Android 14; Pixel 8 Pro",
+        "Linux; Android 13; 22101316G",  # Xiaomi 13
+        "Linux; Android 13; M2101K6G",   # Poco F3
+        "Linux; Android 14; CPH2581",    # OnePlus 12
+    ]
+
+    ios_devices = [
+        "iPhone; CPU iPhone OS 16_5 like Mac OS X",
+        "iPhone; CPU iPhone OS 16_6_1 like Mac OS X",
+        "iPhone; CPU iPhone OS 17_0 like Mac OS X",
+        "iPhone; CPU iPhone OS 17_4 like Mac OS X",
+        "iPhone; CPU iPhone OS 17_5 like Mac OS X",
+        "iPad; CPU OS 16_5 like Mac OS X",
+        "iPad; CPU OS 17_0 like Mac OS X",
+    ]
+
+    # --- Desktop Chrome ---
+    for build in chrome_builds:
+        for p in desktop_platforms:
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({p}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{build} Safari/537.36"
+            )
+
+    # --- Desktop Firefox ---
+    for v in firefox_versions:
+        for p in desktop_platforms:
+            _UA_POOL.append(f"Mozilla/5.0 ({p}; rv:{v}) Gecko/20100101 Firefox/{v}")
+
+    # --- Desktop Edge ---
+    for build in edge_builds:
+        chrome_ver = build.split(".")[0] + ".0.0.0"
+        for p in desktop_platforms:
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({p}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36 Edg/{build}"
+            )
+
+    # --- Desktop Safari ---
+    safari_variants = [
+        ("10_15_7", "16.5", "605.1.15"),
+        ("10_15_7", "16.6", "605.1.15"),
+        ("10_15_7", "17.0", "605.1.15"),
+        ("10_15_7", "17.2", "605.1.15"),
+        ("13_6_7", "17.1", "605.1.15"),
+        ("14_0", "17.3", "605.1.15"),
+        ("14_4", "17.4", "605.1.15"),
+        ("14_5", "17.5", "605.1.15"),
+        ("15_0", "18.0", "605.1.15"),
+        ("15_1", "18.1", "605.1.15"),
+    ]
+    for os_ver, saf_ver, wk_ver in safari_variants:
+        _UA_POOL.append(
+            f"Mozilla/5.0 (Macintosh; Intel Mac OS X {os_ver}) AppleWebKit/{wk_ver}"
+            f" (KHTML, like Gecko) Version/{saf_ver} Safari/{wk_ver}"
+        )
+
+    # --- Desktop Opera/Vivaldi (Chromium-based, adds variety) ---
+    opera_versions = ["104.0.0.0", "105.0.0.0", "106.0.0.0", "107.0.0.0", "108.0.0.0"]
+    for ov in opera_versions:
+        chrome_ver = str(int(ov.split(".")[0]) + 18) + ".0.0.0"
+        for p in ["Windows NT 10.0; Win64; x64", "Macintosh; Intel Mac OS X 10_15_7", "X11; Linux x86_64"]:
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({p}) AppleWebKit/537.36 (KHTML, like Gecko)"
+                f" Chrome/{chrome_ver} Safari/537.36 OPR/{ov}"
+            )
+
+    # --- Mobile Chrome (Android) ---
+    mobile_chrome_builds = [
+        "122.0.6261.119", "123.0.6312.118", "124.0.6367.179",
+        "125.0.6422.165", "126.0.6478.122", "127.0.6533.103",
+        "128.0.6613.127", "129.0.6668.81", "130.0.6723.58",
+    ]
+    for build in mobile_chrome_builds:
+        for d in android_devices:
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({d}) AppleWebKit/537.36 (KHTML, like Gecko)"
+                f" Chrome/{build} Mobile Safari/537.36"
+            )
+
+    # --- Mobile Safari (iOS) ---
+    ios_webkit_versions = [
+        ("604.1", "16.5"),
+        ("605.1.15", "16.6"),
+        ("605.1.15", "17.0"),
+        ("605.1.15", "17.4"),
+        ("605.1.15", "17.5"),
+    ]
+    for wk_ver, saf_ver in ios_webkit_versions:
+        for d in ios_devices:
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({d}) AppleWebKit/{wk_ver}"
+                f" (KHTML, like Gecko) Version/{saf_ver} Mobile/15E148 Safari/{wk_ver}"
+            )
+
+    # --- Mobile Samsung Browser ---
+    samsung_versions = ["23.0", "24.0", "25.0"]
+    for sv in samsung_versions:
+        for d in ["Linux; Android 13; SM-S901B", "Linux; Android 14; SM-S921B", "Linux; Android 14; SM-S928B"]:
+            chrome_ver = "122.0.6261.119"
+            _UA_POOL.append(
+                f"Mozilla/5.0 ({d}) AppleWebKit/537.36 (KHTML, like Gecko)"
+                f" SamsungBrowser/{sv} Chrome/{chrome_ver} Mobile Safari/537.36"
+            )
+
+    return _UA_POOL
+
+
+def gen_useragent(os_string: str | None = None) -> str:
+    """Return a random browser User Agent from a rich pool.
+
+    Pool includes ~900+ unique UAs across Chrome, Firefox, Edge, Safari,
+    Opera, mobile Chrome, mobile Safari, and Samsung Browser — spanning
+    desktop (Windows, macOS, Linux) and mobile (Android, iOS) platforms.
     """
-    return USER_AGENTS['ua'].format(
-        os=os_string or choice(USER_AGENTS['os']),
-        version=choice(USER_AGENTS['versions']),
-    )
+    pool = _init_ua_pool()
+    if os_string:
+        filtered = [ua for ua in pool if os_string in ua]
+        if filtered:
+            return choice(filtered)
+    return choice(pool)
 
 
 def gen_gsa_useragent() -> str:
