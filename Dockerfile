@@ -23,7 +23,8 @@ RUN .venv/bin/pip uninstall -y pygments markdown-it-py h2 hpack hyperframe 2>/de
     find /usr/local/searxng/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
     .venv/bin/python -m compileall -q searx/ 2>/dev/null; true
 
-ENV GRANIAN_BLOCKING_THREADS="1" \
+ENV GRANIAN_WORKERS="5" \
+    GRANIAN_BLOCKING_THREADS="1" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so.2" \
     PYTHONMALLOC="malloc" \
     MALLOC_CONF="dirty_decay_ms:1000,muzzy_decay_ms:1000"
